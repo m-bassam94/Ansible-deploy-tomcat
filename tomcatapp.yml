@@ -1,0 +1,83 @@
+---
+- name: Setup Tomcat on Ubuntu host
+  hosts: web
+  tasks:
+    - name: Update all packages to their latest version
+      apt:
+       name: "*"
+       state: latest
+
+    - name: Install default-jdk
+      apt:
+        name: default-jdk
+        state: latest
+
+    - name: create tomcat group
+      group:
+        name: tomcat
+        state: present
+
+    - name: create tomcat user
+      user:
+        name: tomcat
+        shell: /bin/false
+        group: tomcat
+        create_home: True
+        home: /opt/tomcat
+
+    - name: create tomcat dirctory
+      file:
+        path: /opt/tomcat
+        state: directory
+        mode: 0755
+
+    - name: download & extract tomcat
+      unarchive: 
+       src: https://downloads.apache.org/tomcat/tomcat-9/v9.0.41/bin/apache-tomcat-9.0.41.tar.gz
+       dest: /opt/tomcat
+       remote_src: yes
+       extra_opts: [--strip-components=1]
+
+    - name: change tomcat directory permissions
+      file:
+        path: /opt/tomcat
+        group: tomcat
+        owner: tomcat
+        mode: "u+wrx,g+rx"
+        recurse: yes
+    
+    - name: give webapps, work, temp, logs ownership to tomcat user
+      file:
+        path: "/opt/tomcat/apache-tomcat-9.0.41/{{ item }}"
+        state: directory
+        owner: tomcat
+      with_items:
+        - webapps
+        - work
+        - temp
+        - logs
+
+    - name: Create a systemd tomcat Service File
+      copy:
+        src: tomcat.service
+        dest: /etc/systemd/system/
+        mode: 0755
+
+    - name: reload systemd daemon
+      systemd: daemon_reload=yes
+
+    - name: start tomcat service
+      service: 
+        name: tomcat
+        state: started
+
+    - name: change tomcat port from 9999 to 8080
+      replace:
+        path: /opt/tomcat/conf/server.xml
+        regexp: "8080"
+        replace: "9999"
+  
+    - name: restart tomcat service
+      service:
+        name: tomcat
+        state: restarted 
